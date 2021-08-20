@@ -134,7 +134,7 @@ def run_script(script,
                  '-c', str(ncpus),
                  '-p', partition,
                  '--mem', str(mem)+'G',
-                 '--mem-per-cpu', str(mem)+'M',
+                 #'--mem-per-cpu', str(mem)+'M',
                  '-o', logfile,
                  '-J', job_name]
     if dep is not None:
