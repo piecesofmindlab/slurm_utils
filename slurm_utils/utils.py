@@ -5,6 +5,7 @@ import re
 import uuid
 import time
 import socket
+import tempfile
 import textwrap
 import subprocess
 import pickle
@@ -18,6 +19,21 @@ except ImportError:
 
 def get_uuid():
     return str(uuid.uuid4()).replace('-', '')
+
+def run_local(script, check=False, capture_output=False):
+	tf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py')
+	tf.write(script)
+	tf.close()
+	proc = subprocess.run(['python3', tf.name], check=True, capture_output=capture_output)
+	if capture_output:
+		so = proc.stdout.decode()
+		se = proc.stderr.decode()
+		print(so)
+		if not se == '':
+			print(se)
+	# cleanup
+	os.unlink(tf.name)
+	return proc
 
 def run_script(script, 
                cmd='python3',
