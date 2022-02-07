@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import uuid
 import time
 import socket
@@ -24,7 +25,13 @@ def run_local(script, check=False, capture_output=False):
 	tf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py')
 	tf.write(script)
 	tf.close()
-	proc = subprocess.run(['python3', tf.name], check=True, capture_output=capture_output)
+	# For backward compatibility with python 3.6
+	major, minor, _ = sys.version.split(' ')[0].split('.')
+	if (major, minor) < (3, 7):
+		kw = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	else:
+		kw = dict(capture_output=capture_output)
+	proc = subprocess.run(['python3', tf.name], check=True, **kw)
 	if capture_output:
 		so = proc.stdout.decode()
 		se = proc.stderr.decode()
