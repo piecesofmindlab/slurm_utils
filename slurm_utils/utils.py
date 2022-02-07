@@ -324,6 +324,54 @@ os.unlink('{var_file}')
     return job_id
 
 
+def remote_rsync(source_folder,
+                 destination_folder,
+                 remote_host,
+                 rsync_options='-rv',
+                 ssh_agent_path='~/Code/ssh-find-agent/ssh-find-agent.sh',
+                 ):
+    # Set up commands to call & securely handle passwords
+    #rsync_pw = getpass.getpass('Please enter rsync password to destination folder computer: ')
+    #rsync_pw_command = "export RSYNC_PASSWORD=%s\n"%rsync_pw
+    rsync_command = ' '.join(
+        ['rsync', rsync_options, source_folder, destination_folder]) + '\n'
+    # Start SSH process to remote host
+    sshproc = subprocess.Popen(['ssh', '-tt', remote_host],
+                               stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE,
+                               shell=False,
+                               #env=dict(RSYNC_PASSWORD=rsync_pw)
+                               #universal_newlines=True,
+                               #bufsize=0)
+                               )
+
+    # Call slurm sbatch command
+    # rsync password setup...
+    sshproc.stdin.write(
+        ("source %s\n"%ssh_agent_path).encode('utf-8'))
+    sshproc.stdin.write("set_ssh_agent_socket\n".encode('utf-8'))
+    #sshproc.stdin.write(rsync_pw_command.encode('utf-8'))
+    sshproc.stdin.write("echo $SSH_AGENT_PID\n".encode('utf-8'))
+    #sshproc.stdin.write("echo $SUBJECTS_DIR\n".encode('utf-8'))
+    sshproc.stdin.write(rsync_command.encode('utf-8'))
+    sshproc.stdin.write("logout\n".encode('utf-8'))
+    sshproc.stdin.close()
+    # Record outputs & errors
+    stdout = []
+    for line in sshproc.stdout:
+        txt = line.decode()
+        to_exclude = remote_host.split('.')[0]
+        #if txt == rsync_pw_command.replace('\n','\r\n'):
+        #    continue
+        if to_exclude not in txt:
+            stdout.append(txt)
+    stderr = []
+    for line in sshproc.stderr:
+        stderr.append(line.decode())
+
+    return stdout, stderr
+
 def scatter(db, dbID, n, fn, *args, **kwargs):
     """Scatter jobs to slurm queue
 
