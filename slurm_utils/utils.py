@@ -182,14 +182,15 @@ def run_script(script,
     slurm_script = textwrap.dedent("""
     #!/bin/bash
     #SBATCH
-    export SUBJECTS_DIR=/pomspace/freesurfer_subjects_wip/
-    export FREESURFER_HOME=/usr/local/freesurfer
-    source $FREESURFER_HOME/SetUpFreeSurfer.sh
+    source ~/.bashrc
     {singularity_line}stdbuf -o0 -e0 {cmd} {script_name}
     echo "Job finished! cleanup:"
     echo "removing {script_name}"
     rm {script_name}
-    """)[1:].format(cmd=cmd, singularity_line=singularity_line, script_name=script_name)
+    """)[1:].format(cmd=cmd, 
+                    singularity_line=singularity_line, 
+                    script_name=script_name,
+                    )
     #print('=== Calling: ===')
     #print(slurm_script)
     if remote_host is None:
