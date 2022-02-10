@@ -17,7 +17,7 @@ try:
     default_logdir = config.get('cluster', 'logdir')
 except ImportError:
     raise Exception('No slurm log directory set in options.cfg file!\nPlease edit your options.cfg file in the directory with the vm_tools source code!')
-
+"""  """
 def get_uuid():
     return str(uuid.uuid4()).replace('-', '')
 
@@ -27,7 +27,7 @@ def run_local(script, check=False, capture_output=False):
 	tf.close()
 	# For backward compatibility with python 3.6
 	major, minor, _ = sys.version.split(' ')[0].split('.')
-	if (major, minor) < (3, 7):
+	if (int(major), int(minor)) < (3, 7):
 		kw = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	else:
 		kw = dict(capture_output=capture_output)
