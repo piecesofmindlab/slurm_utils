@@ -5,6 +5,7 @@ import re
 import sys
 import uuid
 import time
+import glob
 import socket
 import tempfile
 import textwrap
@@ -42,11 +43,57 @@ def run_local(script, check=False, capture_output=False):
 	os.unlink(tf.name)
 	return proc
 
+
+def check_errors(start_time, log_dir=None, state='COMPLETED'):
+    """check on slurm errors. 
+
+    Parameters
+    ----------
+    start_time : string
+        input to `-S` (`--starttime`) option in sacct
+            Select  jobs  in  any  state after the specified time. Default is 00:00:00 of the current day, unless the '-s' or '-j' options are used. If the '-s'
+            option is used, then the default is 'now'. If states are given with the '-s' option then only jobs in this state at this time will be  returned.  If
+            the '-j' option is used, then the default time is Unix Epoch 0. See the DEFAULT TIME WINDOW for more details.
+
+            Valid time formats are:
+            HH:MM[:SS][AM|PM]
+            MMDD[YY][-HH:MM[:SS]]
+            MM.DD[.YY][-HH:MM[:SS]]
+            MM/DD[/YY][-HH:MM[:SS]]
+            YYYY-MM-DD[THH:MM[:SS]]
+            today, midnight, noon, fika (3 PM), teatime (4 PM)
+            now[{+|-}count[seconds(default)|minutes|hours|days|weeks]]
+    log_dir
+    """
+    sacct_cmd = ['sacct', '-X', '-o', 'jobid,jobname,user,node,state,start,end,elapsed', '-p', '-S', start_time]
+    out = subprocess.check_output(sacct_cmd).decode()
+    lines = [x.split('|') for x in out.split('\n')]
+    lines = [x for x in lines if len(x) > 1]
+    lines = [x for x in lines if x[4]==state]
+    job_ids_completed = [x[0] for x in lines]
+    if log_dir is not None:
+        error_fnames = sorted(glob.glob(os.path.join(log_dir, '*err')))
+        log_fnames = sorted(glob.glob(os.path.join(log_dir, '*out')))
+        err_files = [f for f in error_fnames if any([jid in f for jid in job_ids_completed])]
+        log_files = [f for f in log_fnames if any([jid in f for jid in job_ids_completed])]
+        return error_fnames, log_fnames, err_files, log_files, job_ids_completed
+    else:
+        return job_ids_completed
+
+
+def show_error(fname):
+    with open(fname) as fid:
+        lines = fid.readlines()
+        for ll in lines:
+            print(ll)
+
+
 def run_script(script, 
                cmd='python3',
                logdir=default_logdir, 
                slurm_out='slurm_pyscript_node_%N_job_%j.out',
                slurm_err=None,
+               write_to_buffer_continuously=False,
                job_name=None,
                dep=None,
                mem=30,
@@ -177,19 +224,23 @@ def run_script(script,
         else:
             singularity_line = 'SINGULARITY_SHELL=/bin/bash\nsingularity exec {img} '.format(
                 mnt=singularity_drive_mount, img=singularity_container)
+    if write_to_buffer_continuously:
+        buffer_cmd = 'stdbuf -o0 -e0 '
+    else:
+        buffer_cmd = ''
     # stdbuf lines force immediate buffer write for better updating
     # of log files during jobs. 
     slurm_script = textwrap.dedent("""
     #!/bin/bash
     #SBATCH
-    source ~/.bashrc
-    {singularity_line}stdbuf -o0 -e0 {cmd} {script_name}
+    {singularity_line}{buffer_cmd}{cmd} {script_name}
     echo "Job finished! cleanup:"
     echo "removing {script_name}"
     rm {script_name}
     """)[1:].format(cmd=cmd, 
                     singularity_line=singularity_line, 
                     script_name=script_name,
+                    buffer_cmd=buffer_cmd,
                     )
     #print('=== Calling: ===')
     #print(slurm_script)
